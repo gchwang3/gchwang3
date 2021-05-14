@@ -91,11 +91,35 @@ class Consumer(threading.Thread):
                             print("매도 주문 에러")
                             time.sleep(0.5)
                         else:
-                            print("매도주문", ret)
+                            uuid = ret['uuid']                            
+                            print("매도주문", ret, 'uuid', uuid)
                             hold_flag = True
                             break
 
                 # print(price_curr, curr_ma15, curr_ma50, curr_ma120)
+
+                if hold_flag == True:
+                    if(price_curr <= (price_buy * 0.8)):
+                        while True:
+                            # volume = upbit.get_balance(self.ticker)
+                            # if volume != None:
+                            #     break
+                            ret = upbit.cancel_order(uuid)                            
+                            time.sleep(0.5)
+                            if ret == None or 'error' in ret:
+                                print("매도 취소 에러")
+                                time.sleep(0.5)
+                            else:
+                                print("매도 취소", ret)
+                                break
+
+                        ret = upbit.sell_market_order(volume)
+                        time.sleep(0.5)                        
+                        if ret == None or 'error' in ret:
+                            print("시장가 매도 주문 에러")
+                            time.sleep(0.5)
+                        else:
+                            print("시장가 매도주문", ret)
 
                 if hold_flag == True:
                     uncomp = upbit.get_order(self.ticker)
@@ -106,8 +130,7 @@ class Consumer(threading.Thread):
 
                         print("매도완료", cash)
                         hold_flag = False
-                        wait_flag = True
-
+                        wait_flag = True            
                 # 3 minutes
                 if i == (5 * 60 * 3):
                 #if i == (60):                    
@@ -129,7 +152,7 @@ class Producer(threading.Thread):
             price = pyupbit.get_current_price(self.ticker)
             self.q.put(price)
             time.sleep(60)
-ticker = "KRW-HBAR"
+ticker = "KRW-ETC"
 q = queue.Queue()
 Producer(q, ticker).start()
 Consumer(q, ticker).start()
