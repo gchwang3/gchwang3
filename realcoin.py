@@ -116,59 +116,110 @@ class Real1Percent(Realcoin):
 
     def make_order(self):
         ret = self.buy_market_order(self.ticker, self.cash * 0.9995)
-        print("매수 주문", ret)
+        print("매수 주문")
 
         order = self.get_order(ret['uuid'])
-        print(order)
+        print(order['created_at'][0:-6],order['market'],order['side'], order['state'],order['price'], order['remaining_volume'])                                
+        print("매수 잔량", order['remaining_volume'])        
         volume = self.get_balance(self.ticker)
 
         ret = self.sell_limit_order(self.ticker, self.price_sell, volume)
         print("매도 주문", ret)
+        order = ret
+        print(order['created_at'][0:-6],order['market'],order['side'], order['state'],order['price'], order['remaining_volume'])                                        
         self.uuid = ret['uuid']
         self.hold_flag = True
 
-    def make_sell_market_order(self):
-        while True:
-            # volume = upbit.get_balance(self.ticker)
-            # if volume != None:
-            #     break
-            ret = upbit.cancel_order(self.uuid)                            
-            if ret == None or 'error' in ret:
-                print("매도 취소 에러")
-                time.sleep(0.5)
-            else:
-                print("매도 취소", ret)
-                break
+    def make_sell_cancel_order(self):
+        orders = self.get_order(self.ticker)        
+        for order in orders:    
+            if order['side'] == 'ask':            
+                ret = self.cancel_order(order['uuid'])
+                if ret == None or 'error' in ret:
+                    print("매도 취소 에러",ret)
+                    time.sleep(0.5)
+                else:
+                    print("매도 취소")
 
-        volume = upbit.get_balance(self.ticker)
+        orders = self.get_order(self.ticker)                            
+        for order in orders:    
+            if order['side'] == 'ask':            
+                print('cancel wait')
+                time.sleep(0.5)                                
+
+    def make_sell_market_order(self):
+        volume = self.get_balance(self.ticker)
         while True:        
-            ret = upbit.sell_market_order(volume)
+            ret = self.sell_market_order(self.ticker, volume)
             time.sleep(0.5)                        
             if ret == None or 'error' in ret:
-                print("시장가 매도 주문 에러")
+                print("시장가 매도 주문 에러", ret)
                 time.sleep(0.5)
             else:
-                print("시장가 매도주문", ret)
+                print("시장가 매도주문")
+                order = ret
+                print(order['created_at'][0:-6],order['market'],order['side'], order['state'],order['price'], order['remaining_volume'])                
                 break
 
+        orders = self.get_order(self.ticker)                            
+        for order in orders:    
+            if order['side'] == 'ask':            
+                print('market ask wait')
+                time.sleep(0.5)          
+        self.hold_flag = False
+        self.wait_flag = True
+
+
     def take_order(self):
-        uncomp = self.get_order(self.ticker)
+        # ticker 가 입력될 경우, 미체결시 주문이 있을 경우 리턴함. 
+        uncomp = self.get_order(self.ticker) 
         print(uncomp)
         print("매도완료")        
         remain_cash = self.get_balance()
         print("잔고 : ", remain_cash)
         self.hold_flag = False
         self.wait_flag = True
+    # 매도 주문 확인
+    
+    def take_order_ask(self): 
+        orders = self.get_order(self.ticker)
+        ask_count = 0
+        for order in orders:    
+            print(order['created_at'][0:-6],order['market'],order['side'], order['state'],order['price'], order['remaining_volume'])
+            if order['side'] == 'ask':
+                ask_count += 1
 
+        print("미채결 매도",ask_count)    
+        if ask_count == 0:
+            self.hold_flag = False
+            self.wait_flag = True
+            print("매도완료")                    
+            remain_cash = self.get_balance()
+            print("잔고 : ", remain_cash)        
+        else:
+            self.hold_flag = True
+            self.wait_flag = True
+        return ask_count == 0       
 
 if __name__ == "__main__":
     with open("upbit.txt", "r") as f:
         key0 = f.readline().strip()
         key1 = f.readline().strip()
 
-    upbit =  Realcoin(key0, key1)
+    # upbit =  Realcoin(key0, key1)
     # price = upbit.get_current_price("KRW-BTC")
     # order = upbit.get_order_detail("34cabb23-8171-4fd1-8f05-f25e312461c7")
+    #order = upbit.get_outstanding_order("KRW-BTC")
+    #print(order)
+    coin = Real1Percent(key0, key1, "KRW-ADA", 100000)      
+    #coin.make_sell_market_order()  # 시장가 판매 
+    
+    if coin.take_order_ask():
+        print("매도 성공")
+    else:
+        print("매도 실패, 주문 취소진행")
+        coin.make_sell_cancel_order()    
+        coin.make_sell_market_order()      
+        print("#33")
+        coin.take_order_ask() 
 
-    order = upbit.get_outstanding_order("KRW-BTC")
-    print(order)
